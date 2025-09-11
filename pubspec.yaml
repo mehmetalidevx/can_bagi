@@ -1,0 +1,47 @@
+name: can_bagi
+description: "Acil kan ihtiyacı durumunda bağışçıları ve hastaneleri buluşturan uygulama."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  
+  # Konum servisleri
+  geolocator: ^11.0.0
+  geocoding: ^2.2.0
+  
+  # Harita
+  google_maps_flutter: ^2.6.0
+  
+  # Firebase servisleri
+  firebase_core: ^2.27.1
+  firebase_auth: ^4.17.9
+  cloud_firestore: ^4.15.9
+  firebase_messaging: ^14.7.20
+  
+  # UI bileşenleri
+  flutter_svg: ^2.0.10+1
+  cached_network_image: ^3.3.1
+  flutter_local_notifications: ^16.3.2
+  provider: ^6.1.2
+  shared_preferences: ^2.2.2
+  lottie: ^3.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/animations/
