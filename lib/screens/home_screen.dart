@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:can_bagi/theme/app_theme.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:can_bagi/main.dart'; // MyApp için
+import 'package:can_bagi/screens/login_screen.dart'; // LoginScreen için
+import 'package:can_bagi/screens/create_notification_screen.dart'; // CreateNotificationScreen için
+import 'package:can_bagi/screens/settings_screen.dart'; // Import ekleyin
+import 'package:can_bagi/screens/notifications_history_screen.dart'; // Import ekleyin
+import 'package:can_bagi/screens/ai_chat_screen.dart'; // AI Chat Screen için
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -11,11 +17,17 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
+  int _selectedIndex = 0; // 0: Harita, 1: Acil İhtiyaç, 2: Bildirimler, 3: Profil
   GoogleMapController? _mapController;
   Position? _currentPosition;
   bool _isLoading = true;
   final Set<Marker> _markers = {};
+
+  // Kullanıcının kan grubu - normalde API'den gelecek
+  final String userBloodType = 'A Rh+';
+
+  // Kullanıcının kan grubu bilgilerini almak için getter
+  Map<String, dynamic>? get bloodInfo => _bloodTypeInfo[userBloodType];
 
   static const CameraPosition _initialCameraPosition = CameraPosition(
     target: LatLng(39.9334, 32.8597), // Ankara koordinatları
@@ -32,7 +44,6 @@ class _HomeScreenState extends State<HomeScreen> {
     bool serviceEnabled;
     LocationPermission permission;
 
-    // Konum servisi açık mı kontrol et
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       setState(() {
@@ -41,7 +52,6 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // Konum izni kontrol et
     permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
@@ -60,14 +70,11 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // Konumu al
     try {
       final position = await Geolocator.getCurrentPosition();
       setState(() {
         _currentPosition = position;
         _isLoading = false;
-        
-        // Kullanıcının konumunu haritada işaretle
         _markers.add(
           Marker(
             markerId: const MarkerId('currentLocation'),
@@ -77,7 +84,6 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       });
 
-      // Haritayı kullanıcının konumuna taşı
       _mapController?.animateCamera(
         CameraUpdate.newLatLng(
           LatLng(position.latitude, position.longitude),
@@ -95,7 +101,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: Column(
         children: [
-          _buildAppBar(),
+          // Bildirimler sekmesinde AppBar'ı gizle
+          if (_selectedIndex != 2 && _selectedIndex != 3) _buildAppBar(),
           Expanded(child: _buildBody()),
         ],
       ),
@@ -137,6 +144,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icon(Icons.bloodtype_outlined),
                 activeIcon: Icon(Icons.bloodtype),
                 label: 'Acil İhtiyaç',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.history_outlined),
+                activeIcon: Icon(Icons.history),
+                label: 'Bildirimler',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.smart_toy_outlined),
+                activeIcon: Icon(Icons.smart_toy),
+                label: 'AI Asistan',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.person_outline),
@@ -227,22 +244,50 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                shape: BoxShape.circle,
+          Row(
+            children: [
+              IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    AppTheme.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                // _buildAppBar metodunda tema değiştirme butonunun onPressed metodunu güncelleyin
+                onPressed: () {
+                  setState(() {
+                    AppTheme.toggleTheme();
+                  });
+                  // MyApp'i yeniden oluşturmak için Navigator kullanıyoruz
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (context) => const MyApp()),
+                  );
+                },
               ),
-              child: const Icon(
-                Icons.notifications_outlined,
-                color: Colors.white,
-                size: 24,
+              IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.notifications_outlined,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                onPressed: () {
+                  // Bildirimler sayfasına git
+                },
               ),
-            ),
-            onPressed: () {
-              // Bildirimler sayfasına git
-            },
+            ],
           ),
         ],
       ),
@@ -256,6 +301,10 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         return _buildEmergencyView();
       case 2:
+        return NotificationsHistoryScreen(notifications: _userNotifications);
+      case 3:
+        return const AIChatScreen();
+      case 4:
         return _buildProfileView();
       default:
         return _buildMapView();
@@ -313,7 +362,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 24),
           const Text(
-            'Acil Kan İhtiyacı',
+            'Acil Kan İhtiyaç',
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
@@ -345,9 +394,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: ElevatedButton.icon(
                       onPressed: () {
                         // Acil kan ihtiyacı bildirimi oluştur
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => CreateNotificationScreen(
+                              onTabChange: _changeTab,
+                              onNotificationCreated: _addNotification,
+                            ),
+                          ),
+                        );
                       },
                       icon: const Icon(Icons.add),
-                      label: const Text('Bildirim Oluştur', style: TextStyle(fontSize: 16)),
+                      label: const Text(
+                        'Bildirim Oluştur',
+                        style: TextStyle(fontSize: 16),
+                      ),
                     ),
                   ),
                 ],
@@ -359,6 +419,51 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Kan grubu uyumluluğu ve bulunabilirlik oranları için veri yapısı
+  final Map<String, Map<String, dynamic>> _bloodTypeInfo = {
+    'A Rh+': {
+      'canReceiveFrom': ['A Rh+', 'A Rh-', 'O Rh+', 'O Rh-'],
+      'canDonateTo': ['A Rh+', 'AB Rh+'],
+      'percentage': '% 37.8',
+    },
+    'A Rh-': {
+      'canReceiveFrom': ['A Rh-', 'O Rh-'],
+      'canDonateTo': ['A Rh+', 'A Rh-', 'AB Rh+', 'AB Rh-'],
+      'percentage': '% 6.6',
+    },
+    'B Rh+': {
+      'canReceiveFrom': ['B Rh+', 'B Rh-', 'O Rh+', 'O Rh-'],
+      'canDonateTo': ['B Rh+', 'AB Rh+'],
+      'percentage': '% 9.0',
+    },
+    'B Rh-': {
+      'canReceiveFrom': ['B Rh-', 'O Rh-'],
+      'canDonateTo': ['B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-'],
+      'percentage': '% 1.5',
+    },
+    'AB Rh+': {
+      'canReceiveFrom': ['A Rh+', 'A Rh-', 'B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-', 'O Rh+', 'O Rh-'],
+      'canDonateTo': ['AB Rh+'],
+      'percentage': '% 3.0',
+    },
+    'AB Rh-': {
+      'canReceiveFrom': ['A Rh-', 'B Rh-', 'AB Rh-', 'O Rh-'],
+      'canDonateTo': ['AB Rh+', 'AB Rh-'],
+      'percentage': '% 0.7',
+    },
+    'O Rh+': {
+      'canReceiveFrom': ['O Rh+', 'O Rh-'],
+      'canDonateTo': ['A Rh+', 'B Rh+', 'AB Rh+', 'O Rh+'],
+      'percentage': '% 35.0',
+    },
+    'O Rh-': {
+      'canReceiveFrom': ['O Rh-'],
+      'canDonateTo': ['A Rh+', 'A Rh-', 'B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-', 'O Rh+', 'O Rh-'],
+      'percentage': '% 6.6',
+    },
+  };
+
+  // _buildProfileView metodunda menü listesine çıkış yap seçeneği ekleyin
   Widget _buildProfileView() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -407,18 +512,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: AppTheme.primaryColor,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.water_drop,
                           color: Colors.white,
                           size: 16,
                         ),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Text(
-                          'A Rh+',
-                          style: TextStyle(
+                          userBloodType,
+                          style: const TextStyle(
                             fontSize: 16,
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -437,18 +542,88 @@ class _HomeScreenState extends State<HomeScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Kan Grubu Bilgileri',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Icon(Icons.pie_chart, color: AppTheme.primaryColor),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Bulunabilirlik Oranı:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(bloodInfo?['percentage'] ?? ''),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Kan Alabileceği Gruplar:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: (bloodInfo?['canReceiveFrom'] as List<String>? ?? [])
+                        .map((type) => Chip(
+                              avatar: const Icon(Icons.arrow_downward, size: 16, color: Colors.white),
+                              label: Text(type),
+                              backgroundColor: AppTheme.primaryColor,
+                              labelStyle: const TextStyle(color: Colors.white),
+                            ))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Kan Verebileceği Gruplar:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: (bloodInfo?['canDonateTo'] as List<String>? ?? [])
+                        .map((type) => Chip(
+                              avatar: const Icon(Icons.arrow_upward, size: 16, color: Colors.white),
+                              label: Text(type),
+                              backgroundColor: AppTheme.successColor,
+                              labelStyle: const TextStyle(color: Colors.white),
+                            ))
+                        .toList(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             child: Column(
               children: [
                 _buildProfileListTile(
-                  icon: Icons.history,
-                  title: 'Bağış Geçmişim',
-                  onTap: () {},
-                ),
-                const Divider(height: 1),
-                _buildProfileListTile(
                   icon: Icons.settings_outlined,
                   title: 'Ayarlar',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const SettingsScreen(),
+                      ),
+                    );
+                  },
                 ),
                 const Divider(height: 1),
                 _buildProfileListTile(
@@ -456,19 +631,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   title: 'Hakkında',
                   onTap: () {},
                 ),
+                const Divider(height: 1),
+                _buildProfileListTile(
+                  icon: Icons.logout,
+                  title: 'Çıkış Yap',
+                  onTap: () {
+                    _logout();
+                  },
+                ),
               ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                // Çıkış yap
-              },
-              icon: const Icon(Icons.logout),
-              label: const Text('Çıkış Yap', style: TextStyle(fontSize: 16)),
             ),
           ),
         ],
@@ -505,5 +676,30 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       onTap: onTap,
     );
+  }
+
+  // Çıkış işlemi
+  void _logout() {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
+  // Bildirimler listesi için state ekle
+  List<Map<String, dynamic>> _userNotifications = [];
+
+  // Bildirim ekleme metodu
+  void _addNotification(Map<String, dynamic> notification) {
+    setState(() {
+      _userNotifications.insert(0, notification); // En başa ekle
+    });
+  }
+
+  // Sekme değiştirme metodu
+  void _changeTab(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 }
