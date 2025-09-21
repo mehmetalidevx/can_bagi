@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:can_bagi/screens/home_screen.dart';
 import 'package:can_bagi/theme/app_theme.dart';
+import 'package:can_bagi/services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -14,6 +15,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _phoneController = TextEditingController();
   bool _isLoading = false;
   String? _selectedBloodType;
   bool _obscurePassword = true;
@@ -34,26 +36,109 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
   Future<void> _register() async {
     if (_formKey.currentState!.validate()) {
+      if (_selectedBloodType == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Lütfen kan grubunuzu seçin'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Şifre uzunluğu kontrolü
+      if (_passwordController.text.length < 6) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Şifre en az 6 karakter olmalıdır'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       setState(() {
         _isLoading = true;
       });
 
-      // Normalde burada Firebase Auth kullanılacak
-      await Future.delayed(const Duration(seconds: 1));
+      try {
+        print('🔄 Firebase kayıt işlemi başlatılıyor...');
+        print('📧 Email: ${_emailController.text}');
+        print('👤 Ad Soyad: ${_nameController.text}');
+        print('🩸 Kan Grubu: $_selectedBloodType');
+        print('📱 Telefon: ${_phoneController.text}');
+        print('🔐 Şifre uzunluğu: ${_passwordController.text.length}');
 
-      setState(() {
-        _isLoading = false;
-      });
-
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        final result = await AuthService.registerWithEmail(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+          fullName: _nameController.text.trim(),
+          bloodType: _selectedBloodType!,
+          phone: _phoneController.text.trim(),
         );
+
+        if (result != null) {
+          print('✅ Firebase kayıt başarılı!');
+          print('🆔 User ID: ${result.user?.uid}');
+          print('📧 User Email: ${result.user?.email}');
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Kayıt başarılı! Hoş geldiniz!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+            
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+            );
+          }
+        } else {
+          print('❌ Firebase kayıt başarısız - result null!');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Kayıt işlemi başarısız. Email zaten kullanımda olabilir.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        print('💥 Firebase kayıt hatası: $e');
+        String errorMessage = 'Bilinmeyen hata';
+        
+        if (e.toString().contains('email-already-in-use')) {
+          errorMessage = 'Bu email adresi zaten kullanımda';
+        } else if (e.toString().contains('weak-password')) {
+          errorMessage = 'Şifre çok zayıf';
+        } else if (e.toString().contains('invalid-email')) {
+          errorMessage = 'Geçersiz email adresi';
+        } else if (e.toString().contains('network-request-failed')) {
+          errorMessage = 'İnternet bağlantısını kontrol edin';
+        }
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }

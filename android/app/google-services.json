@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "277485623590",
+    "project_id": "can-bagi",
+    "storage_bucket": "can-bagi.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:277485623590:android:037167e293012649dd49e7",
+        "android_client_info": {
+          "package_name": "com.example.can_bagi"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAE9-mpeLLyPeKIxL0JNJ6YwnGisxfE7JY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

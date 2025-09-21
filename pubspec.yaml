@@ -10,27 +10,29 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.8
   
-  # Konum servisleri
-  geolocator: ^11.0.0
-  geocoding: ^2.2.0
+  # Environment variables
+  flutter_dotenv: ^5.1.0
   
-  # Harita
-  google_maps_flutter: ^2.6.0
-  
-  # Firebase servisleri
-  firebase_core: ^2.27.1
+  # Firebase
+  firebase_core: ^2.24.2
   firebase_auth: ^4.17.9
   cloud_firestore: ^4.15.9
   firebase_messaging: ^14.7.20
   
+  # HTTP requests
+  http: ^1.1.0
+  
+  # Location services
+  geolocator: ^10.1.0
+  google_maps_flutter: ^2.5.0
+  
   # UI bileşenleri
   flutter_svg: ^2.0.10+1
   cached_network_image: ^3.3.1
-  flutter_local_notifications: ^16.3.2
+  # flutter_local_notifications: ^15.1.3  # Geçici olarak kaldırıldı
   provider: ^6.1.2
-  shared_preferences: ^2.2.2
+  shared_preferences: ^2.3.2
   lottie: ^3.1.0
 
 dev_dependencies:
@@ -41,7 +43,13 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   
+  # .env dosyasını assets'e ekleyelim
   assets:
-    - assets/images/
-    - assets/icons/
-    - assets/animations/
+    - .env
+  
+  # Assets klasörleri şimdilik kaldırıldı
+  # İhtiyaç duyulduğunda tekrar eklenebilir
+  # assets:
+  #   - assets/images/
+  #   - assets/icons/
+  #   - assets/animations/

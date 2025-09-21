@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:can_bagi/theme/app_theme.dart';
+import 'package:can_bagi/services/ai_service.dart';
 
 class AIChatScreen extends StatefulWidget {
   const AIChatScreen({super.key});
@@ -20,7 +21,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
     // Hoş geldin mesajı
     _messages.add(
       ChatMessage(
-        text: "Merhaba! Ben Can Bağı AI asistanınızım. Kan bağışı, kan grupları uyumluluğu ve acil durumlar hakkında size yardımcı olabilirim. Size nasıl yardımcı olabilirim?",
+        text: "Merhaba! 👋 Ben Can Bağı AI asistanınızım. Kan bağışı, kan grupları uyumluluğu ve acil durumlar hakkında size yardımcı olabilirim. Size nasıl yardımcı olabilirim? 🩸",
         isUser: false,
         timestamp: DateTime.now(),
       ),
@@ -48,18 +49,21 @@ class _AIChatScreenState extends State<AIChatScreen> {
       _isTyping = true;
     });
 
+    final messageText = _messageController.text.trim();
     _messageController.clear();
     _scrollToBottom();
 
-    // Simüle edilmiş AI yanıtı (gerçek API entegrasyonu sonradan eklenecek)
-    _simulateAIResponse(userMessage.text);
+    // Gerçek AI yanıtı
+    _getAIResponse(messageText);
   }
 
-  void _simulateAIResponse(String userMessage) {
-    Future.delayed(const Duration(seconds: 2), () {
+  void _getAIResponse(String userMessage) async {
+    try {
+      print('AI Service çağrılıyor: $userMessage'); // Debug için
+      final aiResponse = await AIService.sendMessage(userMessage);
+      print('AI Response alındı: $aiResponse'); // Debug için
+      
       if (!mounted) return;
-
-      String aiResponse = _generateMockResponse(userMessage);
 
       setState(() {
         _messages.add(
@@ -73,22 +77,22 @@ class _AIChatScreenState extends State<AIChatScreen> {
       });
 
       _scrollToBottom();
-    });
-  }
-
-  String _generateMockResponse(String userMessage) {
-    final message = userMessage.toLowerCase();
-    
-    if (message.contains('kan grubu') || message.contains('uyumluluk')) {
-      return "Kan grubu uyumluluğu konusunda size yardımcı olabilirim! Hangi kan grubunuz hakkında bilgi almak istiyorsunuz? Örneğin A Rh+, O Rh- gibi...";
-    } else if (message.contains('bağış') || message.contains('donate')) {
-      return "Kan bağışı yapmak harika bir karar! Kan bağışı yapmadan önce:\n\n• Son 3 ay içinde kan bağışı yapmamış olmalısınız\n• 18-65 yaş arasında olmalısınız\n• En az 50 kg olmalısınız\n• Sağlıklı olmalısınız\n\nBaşka sorularınız var mı?";
-    } else if (message.contains('acil') || message.contains('emergency')) {
-      return "Acil kan ihtiyacı durumunda:\n\n1. Hemen en yakın hastaneye başvurun\n2. Uygulamamızdan acil bildirim oluşturun\n3. Kan bankalarını arayın\n4. Sosyal medyada paylaşım yapın\n\nSize başka nasıl yardımcı olabilirim?";
-    } else if (message.contains('merhaba') || message.contains('selam')) {
-      return "Merhaba! Size nasıl yardımcı olabilirim? Kan bağışı, kan grupları veya acil durumlar hakkında sorularınızı sorabilirsiniz.";
-    } else {
-      return "Anladım. Bu konuda size daha detaylı bilgi verebilirim. Kan bağışı ve kan grupları konusunda uzmanım. Daha spesifik bir soru sorabilir misiniz?";
+    } catch (e) {
+      print('AI Service Error: $e'); // Debug için
+      if (!mounted) return;
+      
+      setState(() {
+        _messages.add(
+          ChatMessage(
+            text: "Üzgünüm, şu anda bir teknik sorun yaşıyorum. Lütfen daha sonra tekrar deneyin. 🤖",
+            isUser: false,
+            timestamp: DateTime.now(),
+          ),
+        );
+        _isTyping = false;
+      });
+      
+      _scrollToBottom();
     }
   }
 
@@ -109,122 +113,124 @@ class _AIChatScreenState extends State<AIChatScreen> {
     return Scaffold(
       body: Column(
         children: [
-          _buildHeader(),
-          Expanded(
-            child: _buildChatArea(),
-          ),
-          _buildInputArea(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 16,
-        left: 16,
-        right: 16,
-        bottom: 16,
-      ),
-      decoration: BoxDecoration(
-        gradient: AppTheme.primaryGradient,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(20),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
+          // Header
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.only(top: 50, left: 20, right: 20, bottom: 20),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.smart_toy,
-              color: Colors.white,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Can Bağı AI Asistanı',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'Kan bağışı konusunda uzman yardımcınız',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppTheme.primaryColor,
+                  AppTheme.primaryColor.withOpacity(0.8),
+                ],
+              ),
             ),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: Colors.greenAccent,
-                    shape: BoxShape.circle,
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
                 ),
-                const SizedBox(width: 6),
-                const Text(
-                  'Çevrimiçi',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                const SizedBox(width: 10),
+                const CircleAvatar(
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.smart_toy, color: AppTheme.primaryColor),
+                ),
+                const SizedBox(width: 15),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'AI Asistan',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Çevrimiçi',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
+          
+          // Chat Area
+          Expanded(
+            child: Container(
+              color: Colors.grey[50],
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.all(16),
+                itemCount: _messages.length + (_isTyping ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == _messages.length && _isTyping) {
+                    return _buildTypingIndicator();
+                  }
+                  
+                  final message = _messages[index];
+                  return _buildMessageBubble(message);
+                },
+              ),
+            ),
+          ),
+          
+          // Input Area
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  spreadRadius: 1,
+                  blurRadius: 5,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    decoration: InputDecoration(
+                      hintText: 'Mesajınızı yazın...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(25),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                    ),
+                    maxLines: null,
+                    onSubmitted: (_) => _sendMessage(),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                FloatingActionButton(
+                  onPressed: _sendMessage,
+                  backgroundColor: AppTheme.primaryColor,
+                  mini: true,
+                  child: const Icon(Icons.send, color: Colors.white),
+                ),
+              ],
+            ),
+          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildChatArea() {
-    return Container(
-      color: Colors.grey.shade50,
-      child: ListView.builder(
-        controller: _scrollController,
-        padding: const EdgeInsets.all(16),
-        itemCount: _messages.length + (_isTyping ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index == _messages.length && _isTyping) {
-            return _buildTypingIndicator();
-          }
-          return _buildMessageBubble(_messages[index]);
-        },
       ),
     );
   }
@@ -236,44 +242,29 @@ class _AIChatScreenState extends State<AIChatScreen> {
         mainAxisAlignment: message.isUser 
             ? MainAxisAlignment.end 
             : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!message.isUser) ...[
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                gradient: AppTheme.primaryGradient,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.smart_toy,
-                color: Colors.white,
-                size: 20,
-              ),
+            const CircleAvatar(
+              radius: 16,
+              backgroundColor: AppTheme.primaryColor,
+              child: Icon(Icons.smart_toy, color: Colors.white, size: 16),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
           ],
           Flexible(
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: message.isUser 
                     ? AppTheme.primaryColor 
                     : Colors.white,
-                borderRadius: BorderRadius.circular(20).copyWith(
-                  bottomLeft: message.isUser 
-                      ? const Radius.circular(20) 
-                      : const Radius.circular(4),
-                  bottomRight: message.isUser 
-                      ? const Radius.circular(4) 
-                      : const Radius.circular(20),
-                ),
+                borderRadius: BorderRadius.circular(18),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 5,
-                    spreadRadius: 0,
+                    color: Colors.grey.withOpacity(0.1),
+                    spreadRadius: 1,
+                    blurRadius: 3,
+                    offset: const Offset(0, 1),
                   ),
                 ],
               ),
@@ -285,16 +276,15 @@ class _AIChatScreenState extends State<AIChatScreen> {
                     style: TextStyle(
                       color: message.isUser ? Colors.white : Colors.black87,
                       fontSize: 16,
-                      height: 1.4,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(
-                    _formatTime(message.timestamp),
+                    '${message.timestamp.hour.toString().padLeft(2, '0')}:${message.timestamp.minute.toString().padLeft(2, '0')}',
                     style: TextStyle(
                       color: message.isUser 
-                          ? Colors.white.withOpacity(0.7)
-                          : Colors.grey.shade600,
+                          ? Colors.white70 
+                          : Colors.grey[600],
                       fontSize: 12,
                     ),
                   ),
@@ -303,19 +293,11 @@ class _AIChatScreenState extends State<AIChatScreen> {
             ),
           ),
           if (message.isUser) ...[
-            const SizedBox(width: 12),
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.person,
-                color: Colors.grey,
-                size: 20,
-              ),
+            const SizedBox(width: 8),
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: Colors.grey[300],
+              child: const Icon(Icons.person, color: Colors.grey, size: 16),
             ),
           ],
         ],
@@ -328,32 +310,23 @@ class _AIChatScreenState extends State<AIChatScreen> {
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              gradient: AppTheme.primaryGradient,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.smart_toy,
-              color: Colors.white,
-              size: 20,
-            ),
+          const CircleAvatar(
+            radius: 16,
+            backgroundColor: AppTheme.primaryColor,
+            child: Icon(Icons.smart_toy, color: Colors.white, size: 16),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20).copyWith(
-                bottomLeft: const Radius.circular(4),
-              ),
+              borderRadius: BorderRadius.circular(18),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 5,
-                  spreadRadius: 0,
+                  color: Colors.grey.withOpacity(0.1),
+                  spreadRadius: 1,
+                  blurRadius: 3,
+                  offset: const Offset(0, 1),
                 ),
               ],
             ),
@@ -384,68 +357,6 @@ class _AIChatScreenState extends State<AIChatScreen> {
         shape: BoxShape.circle,
       ),
     );
-  }
-
-  Widget _buildInputArea() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Row(
-          children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(25),
-                ),
-                child: TextField(
-                  controller: _messageController,
-                  decoration: const InputDecoration(
-                    hintText: 'Mesajınızı yazın...',
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                  ),
-                  maxLines: null,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _sendMessage(),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              decoration: BoxDecoration(
-                gradient: AppTheme.primaryGradient,
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                onPressed: _sendMessage,
-                icon: const Icon(
-                  Icons.send,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatTime(DateTime dateTime) {
-    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 }
 
