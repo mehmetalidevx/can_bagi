@@ -8,6 +8,7 @@ import 'package:can_bagi/screens/create_notification_screen.dart'; // CreateNoti
 import 'package:can_bagi/screens/settings_screen.dart'; // Import ekleyin
 import 'package:can_bagi/screens/notifications_history_screen.dart'; // Import ekleyin
 import 'package:can_bagi/screens/ai_chat_screen.dart'; // AI Chat Screen için
+import 'package:can_bagi/services/auth_service.dart'; // AuthService import
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,8 +24,54 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
   final Set<Marker> _markers = {};
 
-  // Kullanıcının kan grubu - normalde API'den gelecek
-  final String userBloodType = 'A Rh+';
+  // Kullanıcı bilgileri
+  String userName = 'Kullanıcı Adı';
+  String userBloodType = 'A Rh+';
+  Map<String, dynamic>? userData;
+
+  // Kan grubu bilgileri map'i
+  static const Map<String, Map<String, dynamic>> _bloodTypeInfo = {
+    'A Rh+': {
+      'percentage': '%34',
+      'canReceiveFrom': ['A Rh+', 'A Rh-', 'O Rh+', 'O Rh-'],
+      'canDonateTo': ['A Rh+', 'AB Rh+'],
+    },
+    'A Rh-': {
+      'percentage': '%6',
+      'canReceiveFrom': ['A Rh-', 'O Rh-'],
+      'canDonateTo': ['A Rh+', 'A Rh-', 'AB Rh+', 'AB Rh-'],
+    },
+    'B Rh+': {
+      'percentage': '%9',
+      'canReceiveFrom': ['B Rh+', 'B Rh-', 'O Rh+', 'O Rh-'],
+      'canDonateTo': ['B Rh+', 'AB Rh+'],
+    },
+    'B Rh-': {
+      'percentage': '%2',
+      'canReceiveFrom': ['B Rh-', 'O Rh-'],
+      'canDonateTo': ['B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-'],
+    },
+    'AB Rh+': {
+      'percentage': '%3',
+      'canReceiveFrom': ['A Rh+', 'A Rh-', 'B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-', 'O Rh+', 'O Rh-'],
+      'canDonateTo': ['AB Rh+'],
+    },
+    'AB Rh-': {
+      'percentage': '%1',
+      'canReceiveFrom': ['A Rh-', 'B Rh-', 'AB Rh-', 'O Rh-'],
+      'canDonateTo': ['AB Rh+', 'AB Rh-'],
+    },
+    'O Rh+': {
+      'percentage': '%38',
+      'canReceiveFrom': ['O Rh+', 'O Rh-'],
+      'canDonateTo': ['A Rh+', 'B Rh+', 'AB Rh+', 'O Rh+'],
+    },
+    'O Rh-': {
+      'percentage': '%7',
+      'canReceiveFrom': ['O Rh-'],
+      'canDonateTo': ['A Rh+', 'A Rh-', 'B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-', 'O Rh+', 'O Rh-'],
+    },
+  };
 
   // Kullanıcının kan grubu bilgilerini almak için getter
   Map<String, dynamic>? get bloodInfo => _bloodTypeInfo[userBloodType];
@@ -38,6 +85,23 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _getCurrentLocation();
+    _loadUserData(); // Kullanıcı bilgilerini yükle
+  }
+
+  // Kullanıcı bilgilerini yükle
+  Future<void> _loadUserData() async {
+    final user = AuthService.getCurrentUser();
+    if (user != null) {
+      final currentUser = await user;
+      final data = await AuthService.getUserData(currentUser?.uid ?? '');
+      if (data != null && mounted) {
+        setState(() {
+          userData = data;
+          userName = data['fullName'] ?? 'Kullanıcı Adı';
+          userBloodType = data['bloodType'] ?? 'A Rh+';
+        });
+      }
+    }
   }
 
   Future<void> _getCurrentLocation() async {
@@ -419,49 +483,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Kan grubu uyumluluğu ve bulunabilirlik oranları için veri yapısı
-  final Map<String, Map<String, dynamic>> _bloodTypeInfo = {
-    'A Rh+': {
-      'canReceiveFrom': ['A Rh+', 'A Rh-', 'O Rh+', 'O Rh-'],
-      'canDonateTo': ['A Rh+', 'AB Rh+'],
-      'percentage': '% 37.8',
-    },
-    'A Rh-': {
-      'canReceiveFrom': ['A Rh-', 'O Rh-'],
-      'canDonateTo': ['A Rh+', 'A Rh-', 'AB Rh+', 'AB Rh-'],
-      'percentage': '% 6.6',
-    },
-    'B Rh+': {
-      'canReceiveFrom': ['B Rh+', 'B Rh-', 'O Rh+', 'O Rh-'],
-      'canDonateTo': ['B Rh+', 'AB Rh+'],
-      'percentage': '% 9.0',
-    },
-    'B Rh-': {
-      'canReceiveFrom': ['B Rh-', 'O Rh-'],
-      'canDonateTo': ['B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-'],
-      'percentage': '% 1.5',
-    },
-    'AB Rh+': {
-      'canReceiveFrom': ['A Rh+', 'A Rh-', 'B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-', 'O Rh+', 'O Rh-'],
-      'canDonateTo': ['AB Rh+'],
-      'percentage': '% 3.0',
-    },
-    'AB Rh-': {
-      'canReceiveFrom': ['A Rh-', 'B Rh-', 'AB Rh-', 'O Rh-'],
-      'canDonateTo': ['AB Rh+', 'AB Rh-'],
-      'percentage': '% 0.7',
-    },
-    'O Rh+': {
-      'canReceiveFrom': ['O Rh+', 'O Rh-'],
-      'canDonateTo': ['A Rh+', 'B Rh+', 'AB Rh+', 'O Rh+'],
-      'percentage': '% 35.0',
-    },
-    'O Rh-': {
-      'canReceiveFrom': ['O Rh-'],
-      'canDonateTo': ['A Rh+', 'A Rh-', 'B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-', 'O Rh+', 'O Rh-'],
-      'percentage': '% 6.6',
-    },
-  };
+
 
   // _buildProfileView metodunda menü listesine çıkış yap seçeneği ekleyin
   Widget _buildProfileView() {
@@ -498,9 +520,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Kullanıcı Adı',
-                    style: TextStyle(
+                  Text(
+                    userName, // Gerçek kullanıcı adı
+                    style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                     ),
@@ -615,15 +637,20 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               children: [
                 _buildProfileListTile(
-                  icon: Icons.settings_outlined,
+                  icon: Icons.settings,
                   title: 'Ayarlar',
                   onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const SettingsScreen(),
-                      ),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const SettingsScreen()),
                     );
                   },
+                ),
+                const Divider(height: 1),
+                _buildProfileListTile(
+                  icon: Icons.help_outline,
+                  title: 'Yardım ve Destek',
+                  onTap: () {},
                 ),
                 const Divider(height: 1),
                 _buildProfileListTile(
@@ -636,7 +663,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: Icons.logout,
                   title: 'Çıkış Yap',
                   onTap: () {
-                    _logout();
+                    _showLogoutConfirmation(); // Onay dialog'u göster
                   },
                 ),
               ],
@@ -678,12 +705,49 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Çıkış işlemi
-  void _logout() {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-      (route) => false,
+  // Çıkış onay dialog'u
+  void _showLogoutConfirmation() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Çıkış Yap'),
+          content: const Text('Hesabınızdan çıkış yapmak istediğinizden emin misiniz?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Dialog'u kapat
+              },
+              child: const Text(
+                'İptal',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Dialog'u kapat
+                _logout(); // Çıkış yap
+              },
+              child: const Text(
+                'Çıkış Yap',
+                style: TextStyle(color: AppTheme.primaryColor),
+              ),
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  // Çıkış işlemi
+  void _logout() async {
+    await AuthService.signOut(); // Firebase'den çıkış yap
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+    }
   }
 
   // Bildirimler listesi için state ekle

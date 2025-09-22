@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:can_bagi/screens/register_screen.dart';
 import 'package:can_bagi/screens/home_screen.dart';
+import 'package:can_bagi/screens/forgot_password_screen.dart';
 import 'package:can_bagi/theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -115,7 +116,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const ForgotPasswordScreen(),
+                          ),
+                        );
+                      },
                       child: const Text('Şifremi Unuttum'),
                     ),
                   ),
