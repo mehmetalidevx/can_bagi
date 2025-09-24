@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:can_bagi/theme/app_theme.dart';
+import 'package:can_bagi/services/notification_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class NotificationsHistoryScreen extends StatefulWidget {
   final List<Map<String, dynamic>>? notifications;
@@ -14,40 +17,6 @@ class NotificationsHistoryScreen extends StatefulWidget {
 }
 
 class _NotificationsHistoryScreenState extends State<NotificationsHistoryScreen> {
-  // Örnek bildirim verileri - artık parametre olarak gelecek
-  List<Map<String, dynamic>> get _notifications => widget.notifications ?? [
-    {
-      'id': '1',
-      'bloodType': 'A Rh+',
-      'urgency': 'Kritik',
-      'location': 'Ankara Şehir Hastanesi',
-      'description': 'Acil ameliyat için A Rh+ kan grubuna ihtiyaç var',
-      'date': DateTime.now().subtract(const Duration(hours: 2)),
-      'status': 'Aktif',
-      'responses': 5,
-    },
-    {
-      'id': '2',
-      'bloodType': 'O Rh-',
-      'urgency': 'Yüksek',
-      'location': 'Hacettepe Üniversitesi Hastanesi',
-      'description': 'Trafik kazası sonucu acil kan ihtiyacı',
-      'date': DateTime.now().subtract(const Duration(days: 1)),
-      'status': 'Tamamlandı',
-      'responses': 12,
-    },
-    {
-      'id': '3',
-      'bloodType': 'B Rh+',
-      'urgency': 'Orta',
-      'location': 'Gazi Üniversitesi Hastanesi',
-      'description': 'Kanser tedavisi için kan bağışı gerekli',
-      'date': DateTime.now().subtract(const Duration(days: 3)),
-      'status': 'Aktif',
-      'responses': 3,
-    },
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -55,9 +24,7 @@ class _NotificationsHistoryScreenState extends State<NotificationsHistoryScreen>
         children: [
           _buildHeader(),
           Expanded(
-            child: _notifications.isEmpty
-                ? _buildEmptyState()
-                : _buildNotificationsList(),
+            child: _buildNotificationsList(),
           ),
         ],
       ),
@@ -98,76 +65,35 @@ class _NotificationsHistoryScreenState extends State<NotificationsHistoryScreen>
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
-                  Icons.history,
+                  Icons.notifications_active,
                   color: Colors.white,
                   size: 24,
                 ),
               ),
               const SizedBox(width: 12),
-              const Text(
-                'Gönderilen Bildirimler',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Bildirimlerim',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Gönderdiğiniz kan talepleriniz',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              'Toplam ${_notifications.length} bildirim',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.notifications_off_outlined,
-              size: 64,
-              color: AppTheme.primaryColor,
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Henüz bildirim göndermediniz',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.textColor,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Acil kan ihtiyacı bildirimi oluşturmak için\n"Acil İhtiyaç" sekmesini kullanın',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade600,
-            ),
           ),
         ],
       ),
@@ -175,307 +101,300 @@ class _NotificationsHistoryScreenState extends State<NotificationsHistoryScreen>
   }
 
   Widget _buildNotificationsList() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _notifications.length,
-      itemBuilder: (context, index) {
-        final notification = _notifications[index];
-        return _buildNotificationCard(notification);
+    final currentUser = FirebaseAuth.instance.currentUser;
+    
+    print('🔍 NotificationsHistoryScreen - Kullanıcı kontrolü');
+    print('👤 Mevcut kullanıcı: ${currentUser?.uid}');
+    print('📧 Kullanıcı email: ${currentUser?.email}');
+    
+    if (currentUser == null) {
+      print('❌ Kullanıcı giriş yapmamış');
+      return _buildEmptyState('Lütfen önce giriş yapın');
+    }
+
+    print('🔄 NotificationService.getUserNotifications çağrılıyor...');
+    return StreamBuilder<QuerySnapshot>(
+      stream: NotificationService.getUserNotifications(currentUser.uid),
+      builder: (context, snapshot) {
+        print('📊 StreamBuilder durumu: ${snapshot.connectionState}');
+        print('📊 Hata var mı: ${snapshot.hasError}');
+        print('📊 Veri var mı: ${snapshot.hasData}');
+        
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          print('⏳ Veriler yükleniyor...');
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+
+        if (snapshot.hasError) {
+          print('❌ Bildirim yükleme hatası: ${snapshot.error}');
+          print('❌ Hata detayı: ${snapshot.error.runtimeType}');
+          print('❌ Stack trace: ${snapshot.stackTrace}');
+          return _buildEmptyState('Bildirimler yüklenirken hata oluştu\nHata: ${snapshot.error}');
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          print('📭 Bildirim bulunamadı');
+          print('📊 Döküman sayısı: ${snapshot.data?.docs.length ?? 0}');
+          return _buildEmptyState('Henüz bildirim göndermediniz');
+        }
+
+        print('✅ ${snapshot.data!.docs.length} bildirim bulundu');
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: snapshot.data!.docs.length,
+          itemBuilder: (context, index) {
+            final doc = snapshot.data!.docs[index];
+            final notification = doc.data() as Map<String, dynamic>;
+            notification['id'] = doc.id;
+            
+            print('📋 Bildirim ${index + 1}: ${notification['bloodType']} - ${notification['status']}');
+            return _buildNotificationCard(notification);
+          },
+        );
       },
     );
   }
 
-  Widget _buildNotificationCard(Map<String, dynamic> notification) {
-    final isActive = notification['status'] == 'Aktif';
-    final urgencyColor = _getUrgencyColor(notification['urgency']);
-    
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isActive ? AppTheme.primaryColor : Colors.grey.shade300,
-            width: isActive ? 2 : 1,
+  Widget _buildEmptyState(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.notifications_none,
+              size: 64,
+              color: Colors.grey.shade400,
+            ),
           ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Üst kısım - Durum ve tarih
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isActive ? AppTheme.primaryColor : Colors.grey.shade400,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      notification['status'],
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+          const SizedBox(height: 24),
+          Text(
+            message,
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Acil kan ihtiyacı durumunda bildirim oluşturabilirsiniz',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotificationCard(Map<String, dynamic> notification) {
+    final status = notification['status'] ?? 'pending';
+    final createdAt = notification['createdAt'] as Timestamp?;
+    final date = createdAt?.toDate() ?? DateTime.now();
+    
+    Color statusColor;
+    String statusText;
+    IconData statusIcon;
+    
+    switch (status) {
+      case 'pending':
+        statusColor = Colors.orange;
+        statusText = 'Onay Bekleniyor';
+        statusIcon = Icons.hourglass_empty;
+        break;
+      case 'approved':
+        statusColor = Colors.green;
+        statusText = 'Onaylandı';
+        statusIcon = Icons.check_circle;
+        break;
+      case 'rejected':
+        statusColor = Colors.red;
+        statusText = 'Reddedildi';
+        statusIcon = Icons.cancel;
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusText = 'Bilinmeyen';
+        statusIcon = Icons.help;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            spreadRadius: 0,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  Text(
-                    _formatDate(notification['date']),
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
+                  child: Text(
+                    notification['bloodType'] ?? 'Bilinmeyen',
+                    style: const TextStyle(
+                      color: AppTheme.primaryColor,
+                      fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              
-              // Kan grubu ve aciliyet
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.water_drop,
-                      color: Colors.white,
-                      size: 20,
-                    ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(width: 12),
-                  Text(
-                    notification['bloodType'],
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: urgencyColor.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: urgencyColor),
-                    ),
-                    child: Text(
-                      notification['urgency'],
-                      style: TextStyle(
-                        color: urgencyColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(statusIcon, size: 14, color: statusColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        statusText,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                        ),
                       ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  _formatDate(date),
+                  style: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.location_on, size: 16, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    notification['location'] ?? 'Konum belirtilmedi',
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              
-              // Konum
-              Row(
-                children: [
-                  Icon(
-                    Icons.location_on_outlined,
-                    color: Colors.grey.shade600,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      notification['location'],
-                      style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
+            ),
+            if (notification['description'] != null && notification['description'].toString().isNotEmpty) ...[
               const SizedBox(height: 8),
-              
-              // Açıklama
               Text(
                 notification['description'],
                 style: TextStyle(
                   color: Colors.grey.shade600,
-                  fontSize: 14,
+                  fontSize: 13,
+                  height: 1.4,
                 ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Alt kısım - Yanıtlar ve işlemler
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.people_outline,
-                        color: AppTheme.primaryColor,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${notification['responses']} yanıt',
-                        style: const TextStyle(
-                          color: AppTheme.primaryColor,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.share_outlined),
-                        color: AppTheme.primaryColor,
-                        iconSize: 20,
-                        onPressed: () => _shareNotification(notification),
-                      ),
-                      if (isActive)
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined),
-                          color: AppTheme.primaryColor,
-                          iconSize: 20,
-                          onPressed: () => _editNotification(notification),
-                        ),
-                      IconButton(
-                        icon: Icon(
-                          isActive ? Icons.stop_circle_outlined : Icons.delete_outline,
-                        ),
-                        color: isActive ? Colors.orange : Colors.red,
-                        iconSize: 20,
-                        onPressed: () => isActive 
-                            ? _stopNotification(notification)
-                            : _deleteNotification(notification),
-                      ),
-                    ],
-                  ),
-                ],
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
-          ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _getUrgencyColor(notification['urgency']).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    notification['urgency'] ?? 'Normal',
+                    style: TextStyle(
+                      color: _getUrgencyColor(notification['urgency']),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Row(
+                  children: [
+                    Icon(Icons.people, size: 14, color: Colors.grey.shade500),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${notification['responses'] ?? 0} yanıt',
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Color _getUrgencyColor(String urgency) {
+  Color _getUrgencyColor(String? urgency) {
     switch (urgency) {
-      case 'Kritik':
+      case 'Acil':
         return Colors.red;
       case 'Yüksek':
         return Colors.orange;
-      case 'Orta':
+      case 'Normal':
         return Colors.blue;
       default:
-        return Colors.green;
+        return Colors.grey;
     }
   }
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
-    
-    if (difference.inDays > 0) {
-      return '${difference.inDays} gün önce';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours} saat önce';
+
+    if (difference.inMinutes < 1) {
+      return 'Şimdi';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes}dk önce';
+    } else if (difference.inDays < 1) {
+      return '${difference.inHours}sa önce';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}g önce';
     } else {
-      return '${difference.inMinutes} dakika önce';
+      return '${date.day}/${date.month}/${date.year}';
     }
-  }
-
-  void _shareNotification(Map<String, dynamic> notification) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Bildirim paylaşılıyor...'),
-        backgroundColor: AppTheme.primaryColor,
-      ),
-    );
-  }
-
-  void _editNotification(Map<String, dynamic> notification) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Bildirim düzenleme özelliği yakında eklenecek'),
-        backgroundColor: AppTheme.primaryColor,
-      ),
-    );
-  }
-
-  void _stopNotification(Map<String, dynamic> notification) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Bildirimi Durdur'),
-        content: const Text('Bu bildirimi durdurmak istediğinizden emin misiniz?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('İptal'),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                notification['status'] = 'Durduruldu';
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Bildirim durduruldu'),
-                  backgroundColor: AppTheme.primaryColor,
-                ),
-              );
-            },
-            child: const Text('Durdur'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _deleteNotification(Map<String, dynamic> notification) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Bildirimi Sil'),
-        content: const Text('Bu bildirimi silmek istediğinizden emin misiniz?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('İptal'),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _notifications.remove(notification);
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Bildirim silindi'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            },
-            child: const Text('Sil'),
-          ),
-        ],
-      ),
-    );
   }
 }

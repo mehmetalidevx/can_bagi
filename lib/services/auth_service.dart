@@ -40,6 +40,11 @@ class AuthService {
     required String fullName,
     required String bloodType,
     required String phone,
+    required String city,
+    required String district,
+    required String gender,
+    required DateTime birthDate,
+    required double weight,
   }) async {
     try {
       print('🔄 Firebase başlatma kontrolü yapılıyor...');
@@ -59,6 +64,11 @@ class AuthService {
         'fullName': fullName,
         'bloodType': bloodType,
         'phone': phone,
+        'city': city,
+        'district': district,
+        'gender': gender,
+        'birthDate': birthDate.toIso8601String(),
+        'weight': weight,
         'createdAt': FieldValue.serverTimestamp(),
         'isAvailable': true,
         'lastSeen': FieldValue.serverTimestamp(),
@@ -140,6 +150,124 @@ class AuthService {
     } catch (e) {
       print('Kullanıcı bilgisi güncelleme hatası: $e');
       return false;
+    }
+  }
+
+  // Şifre değiştirme
+  static Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      await _ensureInitialized();
+      
+      User? user = _auth!.currentUser;
+      if (user == null) {
+        return {
+          'success': false,
+          'message': 'Kullanıcı oturumu bulunamadı'
+        };
+      }
+
+      // Mevcut şifreyi doğrula
+      AuthCredential credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+
+      // Kullanıcıyı yeniden doğrula
+      await user.reauthenticateWithCredential(credential);
+      
+      // Yeni şifreyi ayarla
+      await user.updatePassword(newPassword);
+      
+      return {
+        'success': true,
+        'message': 'Şifreniz başarıyla değiştirildi'
+      };
+      
+    } on FirebaseAuthException catch (e) {
+      String message;
+      switch (e.code) {
+        case 'wrong-password':
+          message = 'Mevcut şifreniz yanlış';
+          break;
+        case 'weak-password':
+          message = 'Yeni şifre çok zayıf';
+          break;
+        case 'requires-recent-login':
+          message = 'Güvenlik nedeniyle tekrar giriş yapmanız gerekiyor';
+          break;
+        default:
+          message = 'Şifre değiştirme işlemi başarısız: ${e.message}';
+      }
+      
+      return {
+        'success': false,
+        'message': message
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Beklenmeyen bir hata oluştu: $e'
+      };
+    }
+  }
+  
+  // Hesap silme işlemi
+  static Future<bool> deleteAccount() async {
+    try {
+      await _ensureInitialized();
+      // Mevcut kullanıcıyı al
+      final user = _auth?.currentUser;
+      
+      if (user != null) {
+        // Kullanıcının Firestore verilerini sil
+        await _firestore?.collection('users').doc(user.uid).delete();
+        
+        // Firebase Authentication hesabını sil
+        await user.delete();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Hesap silinirken hata: $e');
+      
+      // Eğer yeniden kimlik doğrulama gerekiyorsa
+      if (e.toString().contains('requires-recent-login')) {
+        throw Exception('Güvenlik nedeniyle hesabınızı silmek için önce çıkış yapıp tekrar giriş yapmanız gerekiyor.');
+      }
+      
+      throw Exception('Hesap silinirken bir hata oluştu. Lütfen tekrar deneyin.');
+    }
+  }
+
+  // Yeniden kimlik doğrulama ile hesap silme
+  static Future<bool> deleteAccountWithReauth(String password) async {
+    try {
+      await _ensureInitialized();
+      final user = _auth?.currentUser;
+      
+      if (user != null && user.email != null) {
+        // Yeniden kimlik doğrulama
+        final credential = EmailAuthProvider.credential(
+          email: user.email!,
+          password: password,
+        );
+        
+        await user.reauthenticateWithCredential(credential);
+        
+        // Kullanıcının Firestore verilerini sil
+        await _firestore?.collection('users').doc(user.uid).delete();
+        
+        // Firebase Authentication hesabını sil
+        await user.delete();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Hesap silinirken hata: $e');
+      throw Exception('Hesap silinirken bir hata oluştu. Şifrenizi kontrol edin.');
     }
   }
 }

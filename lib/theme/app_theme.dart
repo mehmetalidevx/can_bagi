@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
+  // Tema değiştirme kodları kaldırıldı - sadece light tema kullanılacak
+
   // Modern gradient renkler
   static const Color primaryColor = Color(0xFFE53935);
   static const Color secondaryColor = Color(0xFFEF5350);
@@ -19,12 +21,6 @@ class AppTheme {
     colors: [Colors.white, Color(0xFFFAFAFA)],
   );
   
-  static const LinearGradient darkCardGradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFF2C2C2C), Color(0xFF1E1E1E)],
-  );
-  
   // Nötr renkler - daha temiz ve modern
   static const Color backgroundColor = Color(0xFFF8F9FA);
   static const Color cardColor = Colors.white;
@@ -35,14 +31,6 @@ class AppTheme {
   static const Color successColor = Color(0xFF4CAF50);
   static const Color warningColor = Color(0xFFFFC107);
   static const Color errorColor = Color(0xFFD32F2F);
-
-  // Tema durumu
-  static bool isDarkMode = false;
-  
-  // Tema değiştirme metodu
-  static void toggleTheme() {
-    isDarkMode = !isDarkMode;
-  }
   
   // Modern gölge efektleri
   static List<BoxShadow> get cardShadow => [
@@ -63,7 +51,7 @@ class AppTheme {
     ),
   ];
   
-  // Tema oluşturma
+  // Açık tema
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
@@ -124,7 +112,7 @@ class AppTheme {
     );
   }
   
-  // Karanlık tema
+  // Koyu tema
   static ThemeData get darkTheme {
     return ThemeData(
       useMaterial3: true,
@@ -134,7 +122,6 @@ class AppTheme {
         secondary: secondaryColor,
         tertiary: accentColor,
         background: const Color(0xFF121212),
-        surface: const Color(0xFF1E1E1E),
         error: errorColor,
         brightness: Brightness.dark,
       ),
@@ -145,6 +132,18 @@ class AppTheme {
         elevation: 0,
         centerTitle: true,
       ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryColor,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 32),
+        ),
+      ),
       cardTheme: CardTheme(
         color: const Color(0xFF1E1E1E),
         elevation: 0,
@@ -154,6 +153,28 @@ class AppTheme {
         ),
         margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
       ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFF1E1E1E),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.grey.shade700),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: primaryColor, width: 2),
+        ),
+      ),
     );
+  }
+  
+  // Mevcut temayı döndür
+  static ThemeData get currentTheme {
+    return lightTheme; // Only using light theme as per comment at top
   }
 }

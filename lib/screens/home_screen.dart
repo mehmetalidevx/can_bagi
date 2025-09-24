@@ -8,7 +8,9 @@ import 'package:can_bagi/screens/create_notification_screen.dart'; // CreateNoti
 import 'package:can_bagi/screens/settings_screen.dart'; // Import ekleyin
 import 'package:can_bagi/screens/notifications_history_screen.dart'; // Import ekleyin
 import 'package:can_bagi/screens/ai_chat_screen.dart'; // AI Chat Screen için
+import 'package:can_bagi/screens/help_support_screen.dart'; // Help Support Screen için
 import 'package:can_bagi/services/auth_service.dart'; // AuthService import
+import 'package:can_bagi/services/places_service.dart'; // Yeni import
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,6 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Position? _currentPosition;
   bool _isLoading = true;
   final Set<Marker> _markers = {};
+  final Set<Marker> _healthFacilityMarkers = {};
 
   // Kullanıcı bilgileri
   String userName = 'Kullanıcı Adı';
@@ -90,17 +93,42 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Kullanıcı bilgilerini yükle
   Future<void> _loadUserData() async {
-    final user = AuthService.getCurrentUser();
-    if (user != null) {
-      final currentUser = await user;
-      final data = await AuthService.getUserData(currentUser?.uid ?? '');
-      if (data != null && mounted) {
-        setState(() {
-          userData = data;
-          userName = data['fullName'] ?? 'Kullanıcı Adı';
-          userBloodType = data['bloodType'] ?? 'A Rh+';
-        });
+    try {
+      final user = await AuthService.getCurrentUser();
+      if (user != null) {
+        print('✅ Kullanıcı bulundu: ${user.email}');
+        final data = await AuthService.getUserData(user.uid);
+        if (data != null && mounted) {
+          setState(() {
+            userData = data;
+            userName = data['fullName'] ?? 'Kullanıcı Adı';
+            userBloodType = data['bloodType'] ?? 'A Rh+';
+          });
+          print('✅ Kullanıcı bilgileri yüklendi: $userName');
+        } else {
+          print('❌ Kullanıcı verisi bulunamadı');
+          // Veri yoksa default değerler kullan, çıkış yapma
+          setState(() {
+            userName = 'Kullanıcı Adı';
+            userBloodType = 'A Rh+';
+          });
+        }
+      } else {
+        print('❌ Kullanıcı oturumu bulunamadı');
+        // Kullanıcı oturumu yoksa login screen'e yönlendir
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+          );
+        }
       }
+    } catch (e) {
+      print('❌ Kullanıcı bilgisi yükleme hatası: $e');
+      // Hata durumunda default değerler kullan
+      setState(() {
+        userName = 'Kullanıcı Adı';
+        userBloodType = 'A Rh+';
+      });
     }
   }
 
@@ -254,13 +282,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildAppBar() {
     return Container(
       padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top,
+        top: MediaQuery.of(context).padding.top + 16,
         left: 16,
         right: 16,
         bottom: 16,
       ),
       decoration: BoxDecoration(
-        color: AppTheme.primaryColor,
+        gradient: AppTheme.primaryGradient,
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(20),
           bottomRight: Radius.circular(20),
@@ -274,84 +302,28 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      spreadRadius: 0,
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.favorite,
-                  color: AppTheme.primaryColor,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Can Bağı',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.favorite,
+              color: Colors.white,
+              size: 24,
+            ),
           ),
-          Row(
-            children: [
-              IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    AppTheme.isDarkMode ? Icons.light_mode : Icons.dark_mode,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                // _buildAppBar metodunda tema değiştirme butonunun onPressed metodunu güncelleyin
-                onPressed: () {
-                  setState(() {
-                    AppTheme.toggleTheme();
-                  });
-                  // MyApp'i yeniden oluşturmak için Navigator kullanıyoruz
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (context) => const MyApp()),
-                  );
-                },
-              ),
-              IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.notifications_outlined,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                onPressed: () {
-                  // Bildirimler sayfasına git
-                },
-              ),
-            ],
+          const SizedBox(width: 12),
+          const Text(
+            'Can Bağı',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
@@ -365,7 +337,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 1:
         return _buildEmergencyView();
       case 2:
-        return NotificationsHistoryScreen(notifications: _userNotifications);
+        return const NotificationsHistoryScreen(); // notifications parametresini kaldırın
       case 3:
         return const AIChatScreen();
       case 4:
@@ -398,6 +370,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
+
+
 
   Widget _buildEmergencyView() {
     return Padding(
@@ -462,7 +436,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           MaterialPageRoute(
                             builder: (context) => CreateNotificationScreen(
                               onTabChange: _changeTab,
-                              onNotificationCreated: _addNotification,
+                              // Bu satırı kaldırın:
+                              // onNotificationCreated: _addNotification,
                             ),
                           ),
                         );
@@ -650,13 +625,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildProfileListTile(
                   icon: Icons.help_outline,
                   title: 'Yardım ve Destek',
-                  onTap: () {},
-                ),
-                const Divider(height: 1),
-                _buildProfileListTile(
-                  icon: Icons.info_outline,
-                  title: 'Hakkında',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const HelpSupportScreen(),
+                      ),
+                    );
+                  },
                 ),
                 const Divider(height: 1),
                 _buildProfileListTile(
@@ -750,15 +726,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Bildirimler listesi için state ekle
-  List<Map<String, dynamic>> _userNotifications = [];
-
-  // Bildirim ekleme metodu
-  void _addNotification(Map<String, dynamic> notification) {
-    setState(() {
-      _userNotifications.insert(0, notification); // En başa ekle
-    });
-  }
+  // Bu metodları tamamen kaldırın:
+  // void _addNotification(Map<String, dynamic> notification) {
+  //   setState(() {
+  //     _userNotifications.insert(0, notification); // En başa ekle
+  //   });
+  // }
 
   // Sekme değiştirme metodu
   void _changeTab(int index) {
@@ -766,4 +739,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedIndex = index;
     });
   }
+
+
 }

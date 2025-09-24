@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:can_bagi/theme/app_theme.dart';
+import 'package:can_bagi/services/auth_service.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -27,6 +28,55 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     super.dispose();
   }
 
+  Future<void> _changePassword() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        final result = await AuthService.changePassword(
+          currentPassword: _currentPasswordController.text,
+          newPassword: _newPasswordController.text,
+        );
+
+        if (mounted) {
+          if (result['success']) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Şifre başarıyla değiştirildi'),
+                backgroundColor: Colors.green,
+              ),
+            );
+            Navigator.pop(context);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(result['message']),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Hata: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -49,38 +99,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Güvenlik Bilgisi
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.security, color: AppTheme.primaryColor),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Güvenlik İpuçları',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '• Şifreniz en az 8 karakter olmalı\n• Büyük ve küçük harf içermeli\n• En az bir rakam içermeli\n• Özel karakter kullanın (!@#\$%)',
-                      style: TextStyle(fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
-              
               const SizedBox(height: 32),
               
               // Mevcut Şifre
@@ -111,13 +129,13 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Mevcut şifrenizi girin';
+                    return 'Lütfen mevcut şifrenizi girin';
                   }
                   return null;
                 },
               ),
               
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               
               // Yeni Şifre
               TextFormField(
@@ -125,7 +143,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 obscureText: _obscureNewPassword,
                 decoration: InputDecoration(
                   labelText: 'Yeni Şifre',
-                  prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.primaryColor),
+                  prefixIcon: const Icon(Icons.lock, color: AppTheme.primaryColor),
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscureNewPassword ? Icons.visibility : Icons.visibility_off,
@@ -147,27 +165,24 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Yeni şifrenizi girin';
+                    return 'Lütfen yeni şifrenizi girin';
                   }
-                  if (value.length < 8) {
-                    return 'Şifre en az 8 karakter olmalı';
-                  }
-                  if (!RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)').hasMatch(value)) {
-                    return 'Şifre büyük harf, küçük harf ve rakam içermeli';
+                  if (value.length < 6) {
+                    return 'Şifre en az 6 karakter olmalıdır';
                   }
                   return null;
                 },
               ),
               
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               
-              // Yeni Şifre Tekrar
+              // Şifre Tekrar
               TextFormField(
                 controller: _confirmPasswordController,
                 obscureText: _obscureConfirmPassword,
                 decoration: InputDecoration(
                   labelText: 'Yeni Şifre (Tekrar)',
-                  prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.primaryColor),
+                  prefixIcon: const Icon(Icons.lock_reset, color: AppTheme.primaryColor),
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
@@ -189,7 +204,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Şifrenizi tekrar girin';
+                    return 'Lütfen şifrenizi tekrar girin';
                   }
                   if (value != _newPasswordController.text) {
                     return 'Şifreler eşleşmiyor';
@@ -198,12 +213,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 },
               ),
               
-              const SizedBox(height: 32),
-              
-              // Şifre Gücü Göstergesi
-              _buildPasswordStrengthIndicator(),
-              
-              const SizedBox(height: 32),
+              const SizedBox(height: 48),
               
               // Kaydet Butonu
               SizedBox(
@@ -211,6 +221,13 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 height: 56,
                 child: ElevatedButton.icon(
                   onPressed: _isLoading ? null : _changePassword,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                   icon: _isLoading
                       ? const SizedBox(
                           width: 24,
@@ -234,96 +251,5 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         ),
       ),
     );
-  }
-
-  Widget _buildPasswordStrengthIndicator() {
-    final password = _newPasswordController.text;
-    int strength = 0;
-    
-    if (password.length >= 8) strength++;
-    if (RegExp(r'[a-z]').hasMatch(password)) strength++;
-    if (RegExp(r'[A-Z]').hasMatch(password)) strength++;
-    if (RegExp(r'\d').hasMatch(password)) strength++;
-    if (RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password)) strength++;
-    
-    Color strengthColor;
-    String strengthText;
-    
-    switch (strength) {
-      case 0:
-      case 1:
-        strengthColor = Colors.red;
-        strengthText = 'Zayıf';
-        break;
-      case 2:
-      case 3:
-        strengthColor = Colors.orange;
-        strengthText = 'Orta';
-        break;
-      case 4:
-        strengthColor = Colors.lightGreen;
-        strengthText = 'İyi';
-        break;
-      case 5:
-        strengthColor = Colors.green;
-        strengthText = 'Güçlü';
-        break;
-      default:
-        strengthColor = Colors.grey;
-        strengthText = '';
-    }
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Şifre Gücü',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 8),
-        LinearProgressIndicator(
-          value: strength / 5,
-          backgroundColor: Colors.grey.shade300,
-          valueColor: AlwaysStoppedAnimation<Color>(strengthColor),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          strengthText,
-          style: TextStyle(
-            fontSize: 12,
-            color: strengthColor,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _changePassword() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
-      
-      // Simüle edilmiş şifre değiştirme işlemi
-      await Future.delayed(const Duration(seconds: 2));
-      
-      setState(() {
-        _isLoading = false;
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Şifreniz başarıyla değiştirildi!'),
-            backgroundColor: AppTheme.primaryColor,
-          ),
-        );
-        Navigator.pop(context);
-      }
-    }
   }
 }

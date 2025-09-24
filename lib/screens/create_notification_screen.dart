@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:can_bagi/theme/app_theme.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:can_bagi/services/notification_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';  // Bu satırı ekleyin
 
 class CreateNotificationScreen extends StatefulWidget {
-  final Function(int)? onTabChange; // Sekme değiştirme callback'i
-  final Function(Map<String, dynamic>)? onNotificationCreated; // Bildirim ekleme callback'i
+  final Function(int)? onTabChange;
   
   const CreateNotificationScreen({
     super.key,
     this.onTabChange,
-    this.onNotificationCreated,
   });
 
   @override
@@ -30,6 +30,7 @@ class _CreateNotificationScreenState extends State<CreateNotificationScreen> {
   GoogleMapController? _mapController;
   LatLng _selectedLocation = const LatLng(41.0082, 28.9784); // İstanbul varsayılan
   Set<Marker> _markers = {};
+  Position? _currentPosition;
 
   final List<String> _bloodTypes = [
     'A Rh+', 'A Rh-', 'B Rh+', 'B Rh-',
@@ -48,133 +49,177 @@ class _CreateNotificationScreenState extends State<CreateNotificationScreen> {
     _getCurrentLocation();
   }
 
-  @override
-  void dispose() {
-    _descriptionController.dispose();
-    _locationController.dispose();
-    _mapController?.dispose();
-    super.dispose();
-  }
-
   Future<void> _getCurrentLocation() async {
     try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          return;
-        }
+        if (permission == LocationPermission.denied) return;
       }
-      
+
+      if (permission == LocationPermission.deniedForever) return;
+
       Position position = await Geolocator.getCurrentPosition();
       setState(() {
+        _currentPosition = position;
         _selectedLocation = LatLng(position.latitude, position.longitude);
-        _updateMarker();
-      });
-      
-      _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: _selectedLocation,
-            zoom: 14.0,
+        _markers = {
+          Marker(
+            markerId: const MarkerId('current_location'),
+            position: _selectedLocation,
+            infoWindow: const InfoWindow(title: 'Mevcut Konum'),
           ),
-        ),
-      );
+        };
+      });
+
+      // Konum adresini otomatik yazmıyoruz artık
+      // _updateLocationText(); // Bu satırı kaldırıyoruz
     } catch (e) {
-      print('Konum alınamadı: $e');
+      print('Konum alma hatası: $e');
     }
   }
 
-  void _updateMarker() {
-    setState(() {
-      _markers = {
-        Marker(
-          markerId: const MarkerId('selected_location'),
-          position: _selectedLocation,
-          infoWindow: const InfoWindow(title: 'Seçilen Konum'),
-        ),
-      };
-    });
+  Future<void> _updateLocationText() async {
+    // Bu metodu artık kullanmıyoruz, sadece harita güncellemesi için
+    // Konum alanını otomatik doldurmuyoruz
+    // setState(() {
+    //   _locationController.text = 'Lat: ${_selectedLocation.latitude.toStringAsFixed(4)}, '
+    //       'Lng: ${_selectedLocation.longitude.toStringAsFixed(4)}';
+    // });
   }
 
   Future<void> _createNotification() async {
+    print('🔄 _createNotification başladı');
+    
     if (_formKey.currentState!.validate()) {
+      print('✅ Form validasyonu geçti');
       setState(() {
         _isLoading = true;
       });
 
-      // Burada bildirim oluşturma işlemi yapılacak
-      // Normalde Firebase veya başka bir backend servisi kullanılır
-      await Future.delayed(const Duration(seconds: 1));
-
-      // Yeni bildirim verisi oluştur
-      final newNotification = {
-        'id': DateTime.now().millisecondsSinceEpoch.toString(),
-        'bloodType': _selectedBloodType,
-        'urgency': _selectedUrgency,
-        'location': _locationController.text.isNotEmpty 
-            ? _locationController.text 
-            : 'Konum belirtilmedi',
-        'description': _descriptionController.text,
-        'date': DateTime.now(),
-        'status': 'Aktif',
-        'responses': 0,
-      };
-
-      setState(() {
-        _isLoading = false;
-      });
-
-      if (mounted) {
-        // Bildirimi listeye ekle
-        if (widget.onNotificationCreated != null) {
-          widget.onNotificationCreated!(newNotification);
+      try {
+        // Kullanıcı giriş kontrolü
+        final currentUser = FirebaseAuth.instance.currentUser;
+        print('👤 Mevcut kullanıcı: ${currentUser?.uid}');
+        print('📧 Kullanıcı email: ${currentUser?.email}');
+        
+        if (currentUser == null) {
+          print('❌ Kullanıcı giriş yapmamış!');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Lütfen önce giriş yapın!'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
         }
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bildirim başarıyla oluşturuldu ve gönderildi!'),
-            backgroundColor: AppTheme.primaryColor,
-          ),
+
+        print('📝 Bildirim parametreleri:');
+        print('  - Kan grubu: $_selectedBloodType');
+        print('  - Aciliyet: $_selectedUrgency');
+        print('  - Konum: ${_locationController.text}');
+        print('  - Açıklama: ${_descriptionController.text}');
+        print('  - Koordinatlar: ${_selectedLocation.latitude}, ${_selectedLocation.longitude}');
+
+        // Firebase'e bildirim kaydet
+        print('🔄 NotificationService.createNotification çağrılıyor...');
+        final notificationId = await NotificationService.createNotification(
+          bloodType: _selectedBloodType,
+          urgency: _selectedUrgency,
+          location: _locationController.text.isNotEmpty 
+              ? _locationController.text 
+              : 'Konum belirtilmedi',
+          description: _descriptionController.text,
+          latitude: _selectedLocation.latitude,
+          longitude: _selectedLocation.longitude,
         );
-        
-        // Ana sayfaya dön ve bildirimler sekmesine geç
-        Navigator.of(context).pop();
-        
-        // Bildirimler sekmesine geç
-        if (widget.onTabChange != null) {
-          widget.onTabChange!(2); // 2 = bildirimler sekmesi
+
+        print('📋 Dönen notification ID: $notificationId');
+
+        if (notificationId != null) {
+          // Başarılı
+          print('✅ Bildirim başarıyla oluşturuldu: $notificationId');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Bildirim başarıyla oluşturuldu! Onay bekleniyor...'),
+                backgroundColor: AppTheme.primaryColor,
+              ),
+            );
+            
+            // Ana sayfaya dön ve bildirimler sekmesine geç
+            Navigator.of(context).pop();
+            
+            if (widget.onTabChange != null) {
+              widget.onTabChange!(2); // 2 = bildirimler sekmesi
+            }
+            
+            // Bu satırı kaldırın çünkü artık gerekli değil:
+            // if (widget.onNotificationCreated != null) {
+            //   widget.onNotificationCreated!({...});
+            // }
+          }
+        } else {
+          // Hata
+          print('❌ NotificationService null döndü');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Bildirim oluşturulamadı. Kullanıcı girişi kontrol edin.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        print('❌ Bildirim oluşturma hatası: $e');
+        print('❌ Hata türü: ${e.runtimeType}');
+        print('❌ Stack trace: ${StackTrace.current}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Hata: $e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
         }
       }
+    } else {
+      print('❌ Form validasyonu başarısız');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        backgroundColor: AppTheme.primaryColor, // Kırmızı arka plan eklendi
-        title: const Text(
-          'Acil Kan İhtiyacı Bildirimi',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white), // İkonları beyaz yap
+        title: const Text('Bildirim Oluştur'),
+        backgroundColor: AppTheme.primaryColor,
+        foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: Icon(
-              _showPreview ? Icons.edit : Icons.preview,
-              color: Colors.white, // İkon rengini beyaz yap
-            ),
+          TextButton(
             onPressed: () {
               setState(() {
                 _showPreview = !_showPreview;
               });
             },
-            tooltip: _showPreview ? 'Düzenle' : 'Önizle',
+            child: Text(
+              _showPreview ? 'Düzenle' : 'Önizle',
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -190,34 +235,6 @@ class _CreateNotificationScreenState extends State<CreateNotificationScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Bilgi metni
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.accentColor.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.info_outline,
-                    color: AppTheme.primaryColor,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Lütfen acil kan ihtiyacı bildiriminizi oluşturun. '
-                      'Bu bildirim yakındaki kan bağışçılarına iletilecektir.',
-                      style: TextStyle(
-                        color: AppTheme.textColor.withOpacity(0.8),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            
             // Kan grubu seçimi
             const Text(
               'Kan Grubu',
@@ -227,22 +244,84 @@ class _CreateNotificationScreenState extends State<CreateNotificationScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            _buildBloodTypeSelector(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedBloodType,
+                  isExpanded: true,
+                  items: _bloodTypes.map((String type) {
+                    return DropdownMenuItem<String>(
+                      value: type,
+                      child: Text(type),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    if (newValue != null) {
+                      setState(() {
+                        _selectedBloodType = newValue;
+                      });
+                    }
+                  },
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
-            
-            // Aciliyet seviyesi
+
+            // Aciliyet durumu
             const Text(
-              'Aciliyet Seviyesi',
+              'Aciliyet Durumu',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 8),
-            _buildUrgencySelector(),
+            Row(
+              children: _urgencyColors.keys.map((String urgency) {
+                final isSelected = _selectedUrgency == urgency;
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedUrgency = urgency;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected 
+                              ? _urgencyColors[urgency] 
+                              : Colors.grey[200],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _urgencyColors[urgency]!,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Text(
+                          urgency,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : _urgencyColors[urgency],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
             const SizedBox(height: 16),
-            
-            // Konum bilgisi
+
+            // Konum
             const Text(
               'Konum',
               style: TextStyle(
@@ -253,65 +332,59 @@ class _CreateNotificationScreenState extends State<CreateNotificationScreen> {
             const SizedBox(height: 8),
             TextFormField(
               controller: _locationController,
-              decoration: const InputDecoration(
-                hintText: 'Hastane adı veya adres',
-                prefixIcon: Icon(
-                  Icons.location_on_outlined,
-                  color: AppTheme.primaryColor,
+              decoration: InputDecoration(
+                hintText: 'Konum bilgisi',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.my_location),
+                  onPressed: _getCurrentLocation,
                 ),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Lütfen konum bilgisi girin';
+                  return 'Konum bilgisi gerekli';
                 }
                 return null;
               },
             ),
             const SizedBox(height: 16),
-            
+
             // Harita
-            const Text(
-              'Haritada Konum Seçin',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
             Container(
               height: 200,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    spreadRadius: 0,
-                  ),
-                ],
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
                 child: GoogleMap(
                   initialCameraPosition: CameraPosition(
                     target: _selectedLocation,
-                    zoom: 14.0,
+                    zoom: 15,
                   ),
                   markers: _markers,
-                  onMapCreated: (controller) {
+                  onMapCreated: (GoogleMapController controller) {
                     _mapController = controller;
                   },
-                  onTap: (LatLng latLng) {
+                  onTap: (LatLng position) {
                     setState(() {
-                      _selectedLocation = latLng;
-                      _updateMarker();
+                      _selectedLocation = position;
+                      _markers = {
+                        Marker(
+                          markerId: const MarkerId('selected_location'),
+                          position: position,
+                          infoWindow: const InfoWindow(title: 'Seçilen Konum'),
+                        ),
+                      };
                     });
+                    // _updateLocationText(); // Bu satırı kaldırıyoruz
                   },
                 ),
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Açıklama
             const Text(
               'Açıklama',
@@ -323,24 +396,20 @@ class _CreateNotificationScreenState extends State<CreateNotificationScreen> {
             const SizedBox(height: 8),
             TextFormField(
               controller: _descriptionController,
-              maxLines: 3,
+              maxLines: 4,
               decoration: const InputDecoration(
-                hintText: 'İhtiyaç hakkında detaylı bilgi',
-                prefixIcon: Icon(
-                  Icons.description_outlined,
-                  color: AppTheme.primaryColor,
-                ),
-                alignLabelWithHint: true,
+                hintText: 'Kan bağışı ihtiyacınızla ilgili detayları yazın...',
+                border: OutlineInputBorder(),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Lütfen açıklama girin';
+                  return 'Açıklama gerekli';
                 }
                 return null;
               },
             ),
-            const SizedBox(height: 32),
-            
+            const SizedBox(height: 24),
+
             // Gönder butonu
             SizedBox(
               width: double.infinity,
@@ -369,337 +438,141 @@ class _CreateNotificationScreenState extends State<CreateNotificationScreen> {
     );
   }
 
-  Widget _buildBloodTypeSelector() {
-    return Container(
-      height: 80,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: _bloodTypes.length,
-        itemBuilder: (context, index) {
-          final bloodType = _bloodTypes[index];
-          final isSelected = bloodType == _selectedBloodType;
-          
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedBloodType = bloodType;
-              });
-            },
-            child: Container(
-              width: 80,
-              margin: const EdgeInsets.only(right: 12),
-              decoration: BoxDecoration(
-                color: isSelected ? AppTheme.primaryColor : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected ? AppTheme.primaryColor : Colors.grey.shade300,
-                  width: 2,
-                ),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: AppTheme.primaryColor.withOpacity(0.3),
-                          blurRadius: 8,
-                          spreadRadius: 0,
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.water_drop,
-                    color: isSelected ? Colors.white : AppTheme.primaryColor,
-                    size: 28,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    bloodType,
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.black87,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildUrgencySelector() {
-    return Row(
-      children: _urgencyColors.entries.map((entry) {
-        final urgency = entry.key;
-        final color = entry.value;
-        final isSelected = urgency == _selectedUrgency;
-        
-        return Expanded(
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedUrgency = urgency;
-              });
-            },
-            child: Container(
-              height: 60,
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                color: isSelected ? color : color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected ? color : Colors.grey.shade300,
-                  width: 2,
-                ),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: color.withOpacity(0.3),
-                          blurRadius: 8,
-                          spreadRadius: 0,
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Center(
-                child: Text(
-                  urgency,
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : color,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
   Widget _buildPreview() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Önizleme başlığı
-          Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppTheme.accentColor.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Text(
-                'Bildirim Önizleme',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryColor,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          
-          // Bildirim kartı
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  spreadRadius: 0,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Üst bilgi
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: _urgencyColors[_selectedUrgency],
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        _selectedUrgency,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _urgencyColors[_selectedUrgency]?.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _urgencyColors[_selectedUrgency]!),
                         ),
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      'Şimdi',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                
-                // Kan grubu
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.water_drop,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'İhtiyaç Duyulan Kan Grubu',
+                        child: Text(
+                          _selectedUrgency,
                           style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _selectedBloodType,
-                          style: const TextStyle(
-                            fontSize: 20,
+                            color: _urgencyColors[_selectedUrgency],
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                
-                // Konum
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.blue,
-                        shape: BoxShape.circle,
                       ),
-                      child: const Icon(
-                        Icons.location_on,
-                        color: Colors.white,
-                        size: 24,
+                      const Spacer(),
+                      Text(
+                        'Şimdi',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Konum',
-                            style: TextStyle(
-                              color: Colors.grey,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _locationController.text.isEmpty
-                                ? 'Konum belirtilmedi'
-                                : _locationController.text,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            height: 120,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: GoogleMap(
-                                initialCameraPosition: CameraPosition(
-                                  target: _selectedLocation,
-                                  zoom: 14.0,
-                                ),
-                                markers: _markers,
-                                liteModeEnabled: true,
-                                zoomControlsEnabled: false,
-                                mapToolbarEnabled: false,
-                                myLocationButtonEnabled: false,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                
-                // Açıklama
-                if (_descriptionController.text.isNotEmpty) ...[  
-                  const Text(
-                    'Açıklama',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _descriptionController.text,
-                    style: const TextStyle(fontSize: 16),
+                    ],
                   ),
                   const SizedBox(height: 16),
-                ],
-                
-                // Gönder butonu
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _createNotification,
-                    icon: _isLoading
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Icon(Icons.send),
-                    label: Text(
-                      _isLoading ? 'Gönderiliyor...' : 'Bildirimi Gönder',
-                      style: const TextStyle(fontSize: 16),
-                    ),
+                  
+                  Row(
+                    children: [
+                      const Icon(Icons.bloodtype, color: AppTheme.primaryColor),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Kan Grubu: $_selectedBloodType',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 8),
+                  
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on, color: AppTheme.primaryColor),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _locationController.text.isNotEmpty 
+                              ? _locationController.text 
+                              : 'Konum belirtilmedi',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  if (_descriptionController.text.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Açıklama',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _descriptionController.text,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // Harita önizleme
+          Container(
+            height: 200,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: GoogleMap(
+                initialCameraPosition: CameraPosition(
+                  target: _selectedLocation,
+                  zoom: 15,
                 ),
-              ],
+                markers: _markers,
+                zoomControlsEnabled: false,
+                mapToolbarEnabled: false,
+                myLocationButtonEnabled: false,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          
+          // Gönder butonu
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton.icon(
+              onPressed: _isLoading ? null : _createNotification,
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.send),
+              label: Text(
+                _isLoading ? 'Gönderiliyor...' : 'Bildirimi Gönder',
+                style: const TextStyle(fontSize: 16),
+              ),
             ),
           ),
         ],

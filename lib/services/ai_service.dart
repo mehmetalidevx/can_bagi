@@ -1,193 +1,170 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 
 class AIService {
-  // API key'i doğrudan buraya yazın (geçici olarak)
-  static const String _apiKey = 'your_gemini_api_key_here';
-  
-  static Future<String> sendMessage(String userMessage) async {
-    // API key kontrolü
-    if (_apiKey.isEmpty || _apiKey == 'your_gemini_api_key_here') {
-      print('⚠️ API key bulunamadı, mock response döndürülüyor');
-      return _getSmartMockResponse(userMessage);
+  static String get _apiKey {
+    final key = dotenv.env['GEMINI_API_KEY'] ?? '';
+    print('🔑 API Key durumu: ${key.isEmpty ? "BOŞ" : "DOLU (${key.length} karakter)"}');
+    return key;
+  }
+
+  static Future<String> sendMessage(String message) async {
+    print('📤 AI Service çağrıldı: $message');
+    
+    final apiKey = _apiKey;
+    if (apiKey.isEmpty || apiKey == 'your_gemini_api_key_here') {
+      print('❌ API key bulunamadı, mock response döndürülüyor');
+      return _getSmartMockResponse(message);
     }
 
-    // Önce basit bir test yapalım
     try {
-      print('🔄 API Test başlıyor...');
-      print('🔑 API Key: ${_apiKey.substring(0, 10)}...');
+      print('🌐 Gemini AI ile bağlantı kuruluyor...');
       
-      // Basit test endpoint'i
-      final testUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=$_apiKey';
+      // Gemini model'i oluştur
+     // Gemini model'i oluştur
+      final model = GenerativeModel(
+       model: 'gemini-1.5-flash',  // veya 'gemini-1.5-pro', 'gemini-2.0-flash'
+        apiKey: apiKey,
+        );
+
+
+      print('🤖 Gemini Pro model hazırlandı');
+
+      // İçerik oluştur
+      final content = [Content.text(message)];
       
-      final testBody = {
-        'contents': [
-          {
-            'parts': [
-              {'text': 'Merhaba, test mesajı'}
-            ]
-          }
-        ]
-      };
+      print('📝 İçerik hazırlandı, yanıt bekleniyor...');
 
-      print('📤 Test URL: ${testUrl.substring(0, 100)}...');
-
-      final response = await http.post(
-        Uri.parse(testUrl),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(testBody),
-      ).timeout(const Duration(seconds: 10));
-
-      print('📥 Status Code: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['candidates'] != null && data['candidates'].isNotEmpty) {
-          print('✅ Gerçek AI yanıtı alındı!');
-          
-          // Şimdi gerçek soruyu sor
-          return await _getRealResponse(userMessage);
-        }
+      // Yanıt al
+      final response = await model.generateContent(content);
+      
+      if (response.text != null && response.text!.isNotEmpty) {
+        print('✅ Gemini AI yanıtı alındı: ${response.text!.substring(0, 50)}...');
+        return response.text!;
       } else {
-        print('❌ API Error: ${response.statusCode}');
-        print('❌ Error Body: ${response.body}');
+        print('❌ Gemini AI boş yanıt döndürdü');
+        throw Exception('Boş yanıt alındı');
       }
+      
     } catch (e) {
-      print('❌ Network Error: $e');
+      print('❌ Gemini AI hatası: $e');
+      print('🔄 Mock response\'a geçiliyor...');
+      return _getSmartMockResponse(message);
     }
-
-    // API çalışmıyorsa mock response
-    print('🤖 Mock response kullanılıyor');
-    return _getSmartMockResponse(userMessage);
   }
 
-  static Future<String> _getRealResponse(String userMessage) async {
-    try {
-      final response = await http.post(
-        Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=$_apiKey'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'contents': [
-            {
-              'parts': [
-                {
-                  'text': '''Sen Can Bağı uygulamasının AI asistanısın. Kan bağışı konusunda uzman bir asistansın.
+  static String _getSmartMockResponse(String message) {
+    final lowerMessage = message.toLowerCase();
+    
+    if (lowerMessage.contains('merhaba') || lowerMessage.contains('selam') || lowerMessage.contains('hello')) {
+      return '''Merhaba! Ben Can Bağı AI asistanınızım. Size nasıl yardımcı olabilirim?
 
-Kullanıcı sorusu: $userMessage
+🩸 Kan bağışı hakkında sorularınızı yanıtlayabilirim
+🏥 Yakındaki sağlık tesislerini bulmanıza yardım edebilirim
+📋 Kan grupları ve uyumluluk hakkında bilgi verebilirim
+🚨 Acil durumlarda ne yapmanız gerektiğini söyleyebilirim
 
-Lütfen Türkçe ve samimi bir dille cevap ver. Eğer selamlaşma yapıyorsa karşılık ver ve kendini tanıt.'''
-                }
-              ]
-            }
-          ],
-          'generationConfig': {
-            'temperature': 0.7,
-            'maxOutputTokens': 400,
-          }
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['candidates'] != null && data['candidates'].isNotEmpty) {
-          return data['candidates'][0]['content']['parts'][0]['text'].toString().trim();
-        }
-      }
-    } catch (e) {
-      print('Real response error: $e');
+Ne öğrenmek istiyorsunuz?''';
     }
     
-    return _getSmartMockResponse(userMessage);
-  }
+    if (lowerMessage.contains('a rh+') || lowerMessage.contains('a pozitif')) {
+      return '''A Rh+ kan grubunuz hakkında bilgiler:
 
-  static String _getSmartMockResponse(String userMessage) {
-    final message = userMessage.toLowerCase();
-    
-    // Selamlaşma
-    if (message.contains('merhaba') || message.contains('selam') || message.contains('hello')) {
-      return "Merhaba! 👋 Ben Can Bağı AI asistanınızım. Kan bağışı, kan grupları uyumluluğu ve acil durumlar hakkında size yardımcı olabilirim. Size nasıl yardımcı olabilirim? 🩸";
+🩸 **Kan Bağışı:**
+- A Rh+ ve AB Rh+ kan gruplarına bağış yapabilirsiniz
+- Evrensel bağışçı değilsiniz, ancak yaygın bir kan grubu
+
+🩸 **Kan Alma:**
+- A Rh+, A Rh-, O Rh+, O Rh- kan gruplarından alabilirsiniz
+- Acil durumlarda O Rh- (evrensel verici) kan alabilirsiniz
+
+📊 **İstatistik:** Türkiye'de yaklaşık %38 oranında görülür
+
+💡 **Tavsiye:** Düzenli kan bağışı yaparak hayat kurtarabilirsiniz!''';
     }
     
-    // A Rh+ kan grubu
-    if (message.contains('a rh+') || message.contains('a+') || message.contains('arh+')) {
-      return """A Rh+ kan grubu hakkında bilgi vereyim! 🩸
+    if (lowerMessage.contains('kan grup') || lowerMessage.contains('uyumluluk')) {
+      return '''Kan Grupları ve Uyumluluk Tablosu:
 
-**A Rh+ kan grubu:**
-• **Kime kan verebilir:** A+ ve AB+ kan gruplarına
-• **Kimden kan alabilir:** A+, A-, O+, O- kan gruplarından
+🅰️ **A Grubu:**
+- A Rh+: A+, AB+ gruplarına verir | A+, A-, O+, O- gruplarından alır
+- A Rh-: A+, A-, AB+, AB- gruplarına verir | A-, O- gruplarından alır
 
-**Önemli bilgiler:**
-• Türkiye'de yaklaşık %38 oranında görülür
-• Rh+ olduğu için hem Rh+ hem Rh- alabilir
-• Kan bağışı yapmak için ideal gruplardan biri
+🅱️ **B Grubu:**
+- B Rh+: B+, AB+ gruplarına verir | B+, B-, O+, O- gruplarından alır
+- B Rh-: B+, B-, AB+, AB- gruplarına verir | B-, O- gruplarından alır
 
-Başka sorularınız var mı? 😊""";
+🆎 **AB Grubu:**
+- AB Rh+: Sadece AB+ grubuna verir | Tüm gruplardan alır (Evrensel alıcı)
+- AB Rh-: AB+, AB- gruplarına verir | AB-, A-, B-, O- gruplarından alır
+
+⭕ **O Grubu:**
+- O Rh+: A+, B+, AB+, O+ gruplarına verir | O+, O- gruplarından alır
+- O Rh-: Tüm gruplara verir (Evrensel verici) | Sadece O- grubundan alır''';
     }
     
-    // Kan grubu uyumluluğu
-    if (message.contains('kan grubu') || message.contains('uyumluluk')) {
-      return """Kan grubu uyumluluğu hakkında bilgi vereyim! 🩸
+    if (lowerMessage.contains('bağış') || lowerMessage.contains('donate')) {
+      return '''Kan Bağışı Hakkında Önemli Bilgiler:
 
-**Temel kurallar:**
-• **O Rh-:** Evrensel verici (herkese verebilir)
-• **AB Rh+:** Evrensel alıcı (herkesten alabilir)
-• **A grubu:** A ve AB gruplarına verebilir
-• **B grubu:** B ve AB gruplarına verebilir
-• **Rh+ olanlar:** Rh+ ve Rh- alabilir
-• **Rh- olanlar:** Sadece Rh- alabilir
+✅ **Bağış Şartları:**
+- 18-65 yaş arası
+- En az 50 kg ağırlık
+- Son bağıştan 8 hafta geçmiş olmalı
+- Sağlıklı ve dinlenmiş olmalısınız
 
-Hangi kan grubunuz hakkında detay istiyorsunuz?""";
+🚫 **Bağış Yapamayacağınız Durumlar:**
+- Grip, soğuk algınlığı
+- Antibiyotik kullanımı
+- Son 6 ay içinde ameliyat
+- Hamilelik ve emzirme dönemi
+
+📅 **Bağış Süreci:**
+1. Kayıt ve ön muayene (15 dk)
+2. Kan alma işlemi (8-10 dk)
+3. Dinlenme ve ikram (15 dk)
+
+💪 **Faydaları:**
+- Bir ünite kan 3 kişinin hayatını kurtarabilir
+- Düzenli bağış sağlığınıza da faydalıdır
+- Ücretsiz sağlık kontrolü imkanı''';
     }
     
-    // Kan bağışı
-    if (message.contains('bağış') || message.contains('donate')) {
-      return """Kan bağışı yapmak harika bir karar! 👏
+    if (lowerMessage.contains('acil') || lowerMessage.contains('emergency')) {
+      return '''🚨 ACİL KAN İHTİYACI DURUMUNDA:
 
-**Kan bağışı şartları:**
-• 18-65 yaş arası olmak
-• En az 50 kg ağırlığında olmak
-• Son 3 ayda kan bağışı yapmamış olmak
-• Sağlıklı olmak
-• Yeterli hemoglobin değerine sahip olmak
+📞 **Hemen Yapılacaklar:**
+1. 112 Acil Servisi arayın
+2. En yakın hastaneye gidin
+3. Can Bağı uygulamasından acil ilan oluşturun
 
-**Bağış öncesi:**
-• Bol su için
-• Yeterli uyku alın
-• Hafif bir öğün tüketin
+🏥 **Hastanede:**
+- Kan grubu testi yapılacak
+- Çapraz eşleştirme (cross-match) yapılacak
+- Acil kan ihtiyacı bildirimi yapılacak
 
-Başka merak ettikleriniz var mı? 🩸""";
+📱 **Can Bağı Uygulaması:**
+- Konum bazlı bağışçı arama
+- Anlık bildirim sistemi
+- Hızlı iletişim imkanı
+
+⚡ **Kritik Bilgi:**
+- O Rh- evrensel verici (acil durumlarda herkese verilebilir)
+- AB Rh+ evrensel alıcı (tüm kan gruplarından alabilir)
+- Kan bulma süresi ortalama 2-4 saat
+
+Acil durumda panik yapmayın, sistematik hareket edin!''';
     }
     
-    // Acil durum
-    if (message.contains('acil') || message.contains('emergency')) {
-      return """🚨 **Acil kan ihtiyacı durumunda:**
+    return '''Merhaba! Can Bağı AI asistanınızım. Size şu konularda yardımcı olabilirim:
 
-1. **Hemen 112'yi arayın**
-2. **En yakın hastaneye başvurun**
-3. **Uygulamamızdan acil bildirim oluşturun**
-4. **Kan merkezlerini arayın:**
-   • Kızılay: 168
-   • AKOM: 153
+🩸 **Kan Bağışı:** Bağış şartları, süreç, faydalar
+🏥 **Sağlık Tesisleri:** Yakındaki hastane ve kan merkezleri
+📋 **Kan Grupları:** Uyumluluk tablosu ve bilgiler
+🚨 **Acil Durumlar:** Ne yapılması gerektiği
+💡 **Genel Bilgi:** Kan bağışı hakkında merak ettikleriniz
 
-**Önemli:** Acil durumda zaman çok kritik! Önce tıbbi müdahale, sonra kan temini.
-
-Size nasıl yardımcı olabilirim?""";
-    }
-    
-    // Genel yardım
-    return """Merhaba! Ben Can Bağı AI asistanınızım. 🤖
-
-**Size yardımcı olabileceğim konular:**
-• 🩸 Kan grubu uyumluluğu
-• 💉 Kan bağışı süreci ve şartları
-• 🚨 Acil kan ihtiyaçları
-• 📍 Kan merkezi bilgileri
-• ❓ Kan bağışı hakkında genel sorular
-
-Hangi konuda yardım istiyorsunuz?""";
+Hangi konuda yardım istiyorsunuz?''';
   }
 }

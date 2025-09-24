@@ -11,6 +11,10 @@ dependencies:
   flutter:
     sdk: flutter
   
+  # Localization
+  flutter_localizations:
+    sdk: flutter
+  
   # Environment variables
   flutter_dotenv: ^5.1.0
   
@@ -22,6 +26,9 @@ dependencies:
   
   # HTTP requests
   http: ^1.1.0
+
+  # AI Services
+  google_generative_ai: ^0.4.3
   
   # Location services
   geolocator: ^10.1.0

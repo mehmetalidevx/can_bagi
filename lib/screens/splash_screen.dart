@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:can_bagi/screens/login_screen.dart';
+import 'package:can_bagi/screens/home_screen.dart';
+import 'package:can_bagi/services/auth_service.dart';
 import 'package:can_bagi/theme/app_theme.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -13,12 +15,34 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigateToLogin();
+    _checkAuthAndNavigate();
   }
 
-  Future<void> _navigateToLogin() async {
+  Future<void> _checkAuthAndNavigate() async {
     await Future.delayed(const Duration(seconds: 2));
-    if (mounted) {
+    
+    if (!mounted) return;
+
+    try {
+      // Kullanıcının giriş durumunu kontrol et
+      final user = await AuthService.getCurrentUser();
+      
+      if (user != null) {
+        print('✅ Kullanıcı zaten giriş yapmış: ${user.email}');
+        // Kullanıcı giriş yapmış, direkt home screen'e git
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      } else {
+        print('❌ Kullanıcı giriş yapmamış, login screen\'e yönlendiriliyor');
+        // Kullanıcı giriş yapmamış, login screen'e git
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+      }
+    } catch (e) {
+      print('❌ Auth kontrol hatası: $e');
+      // Hata durumunda login screen'e git
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => const LoginScreen()),
       );
